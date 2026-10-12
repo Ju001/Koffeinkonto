@@ -70,3 +70,14 @@ jobs:
             git merge --ff-only "$DEPLOY_SHA"
             docker compose up -d --build
             docker image prune -f
+
+            SNIP=/opt/caddy/sites/koffeinkonto.caddy
+            if [ -f "$SNIP" ]; then cp "$SNIP" "$SNIP.bak"; fi
+            cp caddy/koffeinkonto.caddy "$SNIP"
+            if ! docker exec caddy caddy validate --config /etc/caddy/Caddyfile; then
+              if [ -f "$SNIP.bak" ]; then mv "$SNIP.bak" "$SNIP"; else rm -f "$SNIP"; fi
+              echo "Caddy validation failed; snippet rolled back" >&2
+              exit 1
+            fi
+            rm -f "$SNIP.bak"
+            docker exec caddy caddy reload --config /etc/caddy/Caddyfile
