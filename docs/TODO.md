@@ -43,6 +43,23 @@ logic in `src/lib/ops.ts` and `src/lib/store.svelte.ts`, UI in
       events or reload account before export.
 - [ ] Import: reject files above a few MB before `file.text()`.
 
+## 3b. Deferred minors from the UI review
+
+- [ ] Balance line omits "· 0,20 € per coffee" (spec); price only on the
+      secondary button.
+- [ ] Undo can remove a different event than the toast names if pressed while
+      a newer action is still saving: capture the event id in the toast and
+      undo only if it is still last.
+- [ ] Cup: add `touch-action: manipulation` (possible double-tap zoom).
+- [ ] Toast: pause the 5 s auto-dismiss on focus/hover (WCAG 2.2.1).
+- [ ] `applyExternal` leaves a stale `saveError` banner.
+- [ ] Last-backup date is not synced across tabs (`koffeinkonto.lastBackup`
+      is not handled by the storage listener).
+- [ ] Price prefill is invalid for prices of 1.000 € or more (`formatEuro`
+      thousands separator is rejected by `parseEuro`).
+- [ ] Add a dark `theme-color` meta variant.
+- [ ] E2E light/dark smoke screenshots (spec Testing section).
+
 ## 4. Maintenance and decisions
 
 - [ ] Re-check TypeScript 7: pinned to `^6` because `typescript-eslint`
