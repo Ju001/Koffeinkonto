@@ -26,6 +26,7 @@
     preview?: Snippet<[number]>;
   } = $props();
 
+  const uid = $props.id();
   let value = $state('');
   const cents = $derived(parseEuro(value));
 
@@ -59,12 +60,12 @@
         autocomplete="off"
         placeholder="0,00"
         bind:value
-        aria-describedby="amount-help"
+        aria-describedby="{uid}-help"
         data-testid="amount-input"
       />
     </label>
 
-    <p id="amount-help" class="help" data-testid="amount-help">
+    <p id="{uid}-help" class="help" data-testid="amount-help">
       {#if cents !== null && preview}
         {@render preview(cents)}
       {:else if value.trim() !== '' && cents === null}

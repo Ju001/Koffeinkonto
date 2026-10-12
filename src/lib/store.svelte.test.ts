@@ -185,4 +185,18 @@ describe('createStore', () => {
     expect(store.disabled).toBe(false);
     expect(store.balanceCents).toBe(500);
   });
+
+  it('does not wait for a stuck mirror before showing a coffee', async () => {
+    const stuck: KV = {
+      get: async () => null,
+      set: () => new Promise<void>(() => {}),
+    };
+    const { store } = setup({ stored: stored(5), mirror: stuck });
+    await store.init();
+    const t0 = performance.now();
+    await store.drink();
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(store.balanceCents).toBe(480);
+    expect(store.saveError).toBe(false);
+  });
 });

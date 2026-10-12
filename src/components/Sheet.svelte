@@ -8,6 +8,7 @@
     children,
   }: { open: boolean; title: string; onclose: () => void; children: Snippet } = $props();
 
+  const uid = $props.id();
   let dialog: HTMLDialogElement;
 
   // Native <dialog> gives the focus trap, Esc handling and focus restore.
@@ -23,12 +24,12 @@
 
 <dialog
   bind:this={dialog}
-  aria-labelledby="sheet-title"
+  aria-labelledby="{uid}-title"
   onclose={() => open && onclose()}
   onclick={onDialogClick}
 >
   <div class="body">
-    <h2 id="sheet-title">{title}</h2>
+    <h2 id="{uid}-title">{title}</h2>
     {@render children()}
   </div>
 </dialog>

@@ -4,6 +4,13 @@ import { loadAccount, saveAccount, type KV, type LoadStatus } from './persistenc
 
 export const LAST_BACKUP_KEY = 'koffeinkonto.lastBackup';
 
+/**
+ * Per-backend write timeout for actions. Short on purpose: a stuck IndexedDB
+ * (e.g. after iOS backgrounding) must not delay the count by seconds per tap.
+ * The abandoned write still completes in the background and load heals drift.
+ */
+export const SAVE_TIMEOUT_MS = 250;
+
 export interface StoreDeps {
   primary: KV;
   mirror: KV;
@@ -65,7 +72,7 @@ export function createStore(deps: StoreDeps): Store {
   /** Persist `next`; on success commit and return true, otherwise keep state and flag the error. */
   async function commit(next: Account): Promise<boolean> {
     try {
-      account = await saveAccount(next, primary, mirror, now());
+      account = await saveAccount(next, primary, mirror, now(), SAVE_TIMEOUT_MS);
       saveError = false;
       return true;
     } catch {

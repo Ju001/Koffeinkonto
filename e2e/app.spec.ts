@@ -105,8 +105,27 @@ test('Esc closes the sheet and returns focus to Top up', async ({ page }) => {
   await expect(topUp).toBeFocused();
 });
 
+test('each sheet is labelled with its own title and help text', async ({ page }) => {
+  await page.getByTestId('price').click();
+  const dialog = page.getByRole('dialog', { name: 'Price per coffee' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Amount in euros' })).toHaveAccessibleDescription(
+    'Only affects future coffees.',
+  );
+});
+
 test.describe('reduced motion', () => {
   test.use({ reducedMotion: 'reduce' });
+
+  test('the cup does not squash when pressed', async ({ page }) => {
+    await cup(page).hover();
+    await page.mouse.down();
+    const transform = await cup(page)
+      .locator('svg')
+      .evaluate((el) => getComputedStyle(el).transform);
+    await page.mouse.up();
+    expect(transform).toBe('none');
+  });
 
   test('the steam stands still', async ({ page }) => {
     const name = await page

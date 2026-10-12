@@ -50,6 +50,12 @@
     transform: scale(0.94) translateY(3px);
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .cup:active:not(:disabled) svg {
+      transform: none;
+    }
+  }
+
   .steam path {
     fill: none;
     stroke: var(--steam);
