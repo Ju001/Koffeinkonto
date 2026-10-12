@@ -110,21 +110,27 @@ reserved slot prevents layout shift. Undo reverts the last event only.
 
 ### Visual system
 
-CSS variables for all tokens.
+CSS variables for all tokens. Light is "porcelain"; dark is "espresso"
+(chosen 2026-10-12 in the visual companion).
 
-| Token | Light | Dark |
+| Token | Light | Dark (espresso) |
 |---|---|---|
 | background | `#F3EDE2` | `#1E1712` |
-| text | `#2B1D17` | warm off-white |
-| muted text | `#6f6a5c` | warm grey |
-| enamel green | `#1F5E4B` | lighter green for contrast |
-| crema | `#E9B872` | same |
-| saucer / shadow | `#fff` / `#d8d0c0` | dark equivalents |
+| text | `#2B1D17` | `#EFE6D8` |
+| muted text | `#6f6a5c` | `#A99C8A` |
+| number / accent | `#1F5E4B` | `#E9B872` |
+| cup | `#1F5E4B` | `#2E7A60` |
+| crema | `#E9B872` | `#E9B872` |
+| saucer / shadow | `#fff` / `#d8d0c0` | `#EFE6D8` / `#0E0A07` |
+| buttons | `#fff` | `#2A211A` |
 
-Numbers use a serif face (Georgia stack); UI text uses the system sans stack.
-Dark mode follows `prefers-color-scheme`. The existing PWA theme colour is
-updated to the light background. Final app icons are redrawn from the same cup
-(no face).
+Typeface: Bricolage Grotesque (variable, bundled via
+`@fontsource-variable/bricolage-grotesque`, precached for offline). Base 17px;
+the coffee count is 96px weight 800 with tabular numerals. Layout follows the
+approved mockup: light title, `coffees left · 4,80 €` on one line, the hint
+"Tap the cup to drink one", and a one-line footer
+`Last backup: … · Export · Import`. Dark mode follows `prefers-color-scheme`,
+including a dark `theme-color`.
 
 ### Accessibility
 
