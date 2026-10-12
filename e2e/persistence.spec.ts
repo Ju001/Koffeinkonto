@@ -18,14 +18,14 @@ async function importBackup(page: Page, content: string) {
 test('restores the account from the mirror when localStorage is wiped', async ({ page }) => {
   await page.goto('/');
   await importBackup(page, JSON.stringify(backup));
-  await expect(page.getByTestId('account-summary')).toContainText('0,25');
-  await expect(page.getByTestId('account-summary')).toContainText('1 entries');
+  await expect(page.getByTestId('price')).toContainText('0,25');
+  await expect(page.getByTestId('coffees-left')).toHaveText('20');
 
   await page.evaluate(() => localStorage.clear());
   await page.reload();
 
   await expect(page.getByTestId('restore-notice')).toBeVisible();
-  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  await expect(page.getByTestId('price')).toContainText('0,25');
   const healed = await page.evaluate(() => localStorage.getItem('koffeinkonto.account'));
   expect(healed).not.toBeNull();
 });
@@ -33,21 +33,22 @@ test('restores the account from the mirror when localStorage is wiped', async ({
 test('rejects an invalid backup without touching the stored account', async ({ page }) => {
   await page.goto('/');
   await importBackup(page, JSON.stringify(backup));
-  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  await expect(page.getByTestId('price')).toContainText('0,25');
 
   await importBackup(page, '{"v":2,"priceCents":-1}');
   await expect(page.getByTestId('import-error')).toBeVisible();
-  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  await expect(page.getByTestId('price')).toContainText('0,25');
 
   await page.reload();
-  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  await expect(page.getByTestId('price')).toContainText('0,25');
 });
 
-test('corrupt storage hides the empty summary and disables export', async ({ page }) => {
+test('corrupt storage disables the cup, top-up and export', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('koffeinkonto.account', '{bad'));
   await page.goto('/');
   await expect(page.getByTestId('corrupt-notice')).toBeVisible();
-  await expect(page.getByTestId('account-summary')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Drink a coffee' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Top up' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Export backup' })).toBeDisabled();
 });
 
