@@ -135,3 +135,58 @@ test.describe('reduced motion', () => {
     expect(name).toBe('none');
   });
 });
+
+test('rejects an import larger than 5 MB before reading it', async ({ page }) => {
+  await page.getByTestId('import-input').setInputFiles({
+    name: 'huge.json',
+    mimeType: 'application/json',
+    buffer: Buffer.alloc(5 * 1024 * 1024 + 1, ' '),
+  });
+  await expect(page.getByTestId('import-error')).toHaveText(
+    'This file is too large to be a Koffeinkonto backup.',
+  );
+});
+
+test('the cup opts out of double-tap zoom', async ({ page }) => {
+  const touchAction = await cup(page).evaluate((el) => getComputedStyle(el).touchAction);
+  expect(touchAction).toBe('manipulation');
+});
+
+test('the toast stays while its Undo button has focus', async ({ page }) => {
+  await page.clock.install();
+  await page.reload();
+  await topUpPreset(page, 5);
+  const undoButton = page.getByTestId('toast').getByRole('button', { name: 'Undo' });
+  await undoButton.focus();
+  await page.clock.runFor(8000);
+  await expect(undoButton).toBeVisible();
+
+  await cup(page).focus();
+  await page.clock.runFor(6000);
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+});
+
+test('another tab sees the new backup date', async ({ page, context }) => {
+  const other = await context.newPage();
+  await other.goto('/');
+  await expect(other.getByTestId('last-backup')).toContainText('never');
+
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Export backup' }).click();
+  await download;
+  await expect(other.getByTestId('last-backup')).toHaveText(/Last backup: (?!never)/);
+});
+
+test('later toasts still dismiss after Undo was clicked with the mouse', async ({ page }) => {
+  await page.clock.install();
+  await page.reload();
+  await topUpPreset(page, 5);
+  await page.getByTestId('toast').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+
+  await cup(page).click();
+  await expect(page.getByTestId('toast')).toBeVisible();
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(6000);
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+});

@@ -13,6 +13,8 @@
   const store = createStore({ primary: localStorageKV, mirror: indexedDbKV, meta: localStorageKV });
 
   const TOPUP_PRESETS = [500, 1000, 2000];
+  // Real backups are a few hundred KB at most; refuse to read anything absurd.
+  const MAX_IMPORT_BYTES = 5 * 1024 * 1024;
   let persisted = $state<boolean | null>(null);
   let importError = $state('');
   let sheet = $state<'topup' | 'price' | null>(null);
@@ -51,6 +53,10 @@
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    if (file.size > MAX_IMPORT_BYTES) {
+      importError = 'This file is too large to be a Koffeinkonto backup.';
+      return;
+    }
     const parsed = parseAccount(await file.text());
     if (!parsed) {
       importError = 'This file is not a valid Koffeinkonto backup.';

@@ -10,9 +10,12 @@
 
   const TOAST_MS = 5000;
 
+  // Hovering or focusing the toast pauses it; leaving restarts the full timer.
+  let paused = $state(false);
+
   // Re-arms for every new toast object, so a second identical action restarts the timer.
   $effect(() => {
-    if (!toast) return;
+    if (!toast || paused) return;
     const timer = setTimeout(ondismiss, TOAST_MS);
     return () => clearTimeout(timer);
   });
@@ -27,7 +30,15 @@
 
 <div class="slot" role="status" aria-live="polite">
   {#if toast}
-    <div class="toast" data-testid="toast">
+    <div
+      class="toast"
+      data-testid="toast"
+      role="group"
+      onfocusin={() => (paused = true)}
+      onfocusout={() => (paused = false)}
+      onmouseenter={() => (paused = true)}
+      onmouseleave={() => (paused = false)}
+    >
       <span>{text(toast)}</span>
       {#if toast.undoable}
         <button type="button" onclick={onundo}>Undo</button>

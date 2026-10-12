@@ -35,6 +35,7 @@
     padding: 0;
     border: 0;
     background: none;
+    touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
