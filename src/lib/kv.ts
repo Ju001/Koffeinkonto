@@ -14,20 +14,38 @@ const STORE = 'kv';
 let dbPromise: Promise<IDBDatabase> | undefined;
 
 function openDb(): Promise<IDBDatabase> {
-  dbPromise ??= new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+  const attempt = new Promise<IDBDatabase>((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      // Drop the cached connection whenever it goes away so the next call reopens it.
+      db.onclose = () => forget(attempt);
+      db.onversionchange = () => {
+        db.close();
+        forget(attempt);
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
+    req.onblocked = () => reject(new Error('IndexedDB open blocked'));
   });
-  return dbPromise;
+  // Never cache a failed open; the next call retries.
+  attempt.catch(() => forget(attempt));
+  dbPromise = attempt;
+  return attempt;
 }
 
-async function run<T>(
+function forget(p: Promise<IDBDatabase>) {
+  if (dbPromise === p) dbPromise = undefined;
+}
+
+function transact<T>(
+  db: IDBDatabase,
   mode: IDBTransactionMode,
   fn: (store: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
-  const db = await openDb();
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE, mode);
     const req = fn(tx.objectStore(STORE));
@@ -35,6 +53,22 @@ async function run<T>(
     tx.onerror = () => reject(tx.error);
     tx.onabort = () => reject(tx.error);
   });
+}
+
+async function run<T>(
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
+  const pending = openDb();
+  const db = await pending;
+  try {
+    return await transact(db, mode, fn);
+  } catch (err) {
+    // A connection closed behind our back throws InvalidStateError: reopen once.
+    if (!(err instanceof DOMException && err.name === 'InvalidStateError')) throw err;
+    forget(pending);
+    return transact(await openDb(), mode, fn);
+  }
 }
 
 export const indexedDbKV: KV = {
