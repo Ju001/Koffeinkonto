@@ -60,6 +60,13 @@ logic in `src/lib/ops.ts` and `src/lib/store.svelte.ts`, UI in
 - [x] Add a dark `theme-color` meta variant.
 - [x] E2E light/dark smoke screenshots (spec Testing section).
 
+## 3c. Deferred minors from the second review
+
+- [ ] `store.undo(eventId)`: on a mismatch, only clear the toast if it still
+      names `eventId` (today a newer toast and its Undo can vanish in a race).
+- [ ] `kv.ts`: if an open fires `onblocked` and later succeeds, close the
+      orphaned connection in `onsuccess`.
+
 ## 4. Maintenance and decisions
 
 - [ ] Re-check TypeScript 7: pinned to `^6` because `typescript-eslint`

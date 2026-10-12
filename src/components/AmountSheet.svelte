@@ -111,7 +111,7 @@
     min-height: 48px;
     margin-top: 6px;
     padding: 0 14px;
-    border: 2px solid var(--surface-edge);
+    border: 2px solid var(--muted);
     border-radius: 14px;
     background: var(--surface);
     color: var(--fg);
@@ -134,5 +134,12 @@
     background: var(--accent);
     color: var(--on-accent);
     font-weight: 700;
+  }
+
+  /* Its label is the only instruction in an empty sheet, so keep it readable. */
+  .confirm:disabled {
+    opacity: 1;
+    background: var(--surface);
+    color: var(--muted);
   }
 </style>

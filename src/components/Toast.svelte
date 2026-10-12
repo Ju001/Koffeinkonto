@@ -11,7 +11,10 @@
   const TOAST_MS = 5000;
 
   // Hovering or focusing the toast pauses it; leaving restarts the full timer.
-  let paused = $state(false);
+  // The pause belongs to one toast object, so a toast removed mid-hover (no
+  // mouseleave/focusout fires) cannot freeze the next one.
+  let pausedFor = $state<Toast | null>(null);
+  const paused = $derived(toast !== null && pausedFor === toast);
 
   // Re-arms for every new toast object, so a second identical action restarts the timer.
   $effect(() => {
@@ -34,10 +37,10 @@
       class="toast"
       data-testid="toast"
       role="group"
-      onfocusin={() => (paused = true)}
-      onfocusout={() => (paused = false)}
-      onmouseenter={() => (paused = true)}
-      onmouseleave={() => (paused = false)}
+      onfocusin={() => (pausedFor = toast)}
+      onfocusout={() => (pausedFor = null)}
+      onmouseenter={() => (pausedFor = toast)}
+      onmouseleave={() => (pausedFor = null)}
     >
       <span>{text(toast)}</span>
       {#if toast.undoable}

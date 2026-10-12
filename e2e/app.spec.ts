@@ -190,3 +190,23 @@ test('later toasts still dismiss after Undo was clicked with the mouse', async (
   await page.clock.runFor(6000);
   await expect(page.getByTestId('toast')).toHaveCount(0);
 });
+
+test('a toast removed while hovered does not freeze later toasts', async ({ page, context }) => {
+  await page.clock.install();
+  await page.reload();
+  await topUpPreset(page, 5);
+  await page.getByTestId('toast').hover();
+
+  // Another tab writes; this tab adopts it and drops its toast while the mouse is over it.
+  const other = await context.newPage();
+  await other.goto('/');
+  await topUpPreset(other, 10);
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+
+  await page.mouse.move(0, 0);
+  await cup(page).click();
+  await expect(page.getByTestId('toast')).toBeVisible();
+  await page.mouse.move(0, 0);
+  await page.clock.runFor(6000);
+  await expect(page.getByTestId('toast')).toHaveCount(0);
+});
