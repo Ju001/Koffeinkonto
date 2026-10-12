@@ -9,7 +9,10 @@
     "5173": { "label": "Vite dev server" },
     "4173": { "label": "Vite preview" }
   },
-  "postCreateCommand": "npm ci && npx playwright install --with-deps chromium",
+  "remoteEnv": {
+    "PATH": "${containerEnv:PATH}:/home/node/.local/bin"
+  },
+  "postCreateCommand": "curl -fsSL https://claude.ai/install.sh | bash && npm ci && npx playwright install --with-deps chromium",
   "customizations": {
     "vscode": {
       "extensions": [
