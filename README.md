@@ -77,3 +77,31 @@ that passed CI (not whatever `main` is by then), then
   app to the home screen; Safari tabs evict unused site data after about
   seven days.
 - Concurrent edits from two tabs of the same browser are last-write-wins.
+
+## Known issues
+
+Limitations that remain by design or are not yet fixed. Open work is tracked in
+`docs/TODO.md`.
+
+- **Two tabs at once.** Tabs follow each other's saves, but if both save at
+  the same moment the later write wins and the other tab's change is lost.
+- **Private browsing.** IndexedDB may be unavailable, so there is no mirror
+  copy, and the browser discards everything when the private window closes.
+- **"Last backup" is recorded on click.** Browsers do not report whether a
+  download finished or was cancelled, so a cancelled export still updates the
+  date.
+- **No haptics on iPhone.** iOS Safari does not support vibration; the cup's
+  press animation is the only feedback.
+- **Tested in Chromium only.** The automated end-to-end tests run in Chromium.
+  Safari/iOS and Firefox have not been tested automatically or on a real
+  device, including the toast's pause-on-hover/focus behaviour.
+- **Screen readers.** The undo toast is announced via a live region, but the
+  app has not been checked with a real screen reader.
+- **Served from the domain root only.** Built asset URLs are absolute
+  (`/assets/...`); hosting under a subpath needs a Vite `base` change.
+- **Font size on first load.** About 120 KB of font files (including
+  Vietnamese and extended-Latin subsets that are rarely needed) are
+  downloaded and cached for offline use.
+- **Rare edge cases** (see `docs/TODO.md` §3c): pressing Undo exactly while a
+  newer action is still saving can hide that newer action's Undo; a blocked
+  IndexedDB open that later succeeds leaves an unused connection open.

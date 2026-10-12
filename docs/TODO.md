@@ -1,22 +1,22 @@
 # Koffeinkonto – remaining work
 
-Status as of 2026-10-12: foundation (stack, devcontainer, Docker, CI/CD,
-persistence layer, shell) is merged to `main`. Nothing is pushed yet and no
-remote exists. Specs and plans live in `docs/superpowers/`.
+Status as of 2026-10-12: the app (UI, persistence, Espresso dark theme) is on
+`main`, pushed to GitHub and live. Known issues are listed in `README.md`.
+Specs and plans live in `docs/superpowers/`.
 
-## 1. Go live (needs your infrastructure)
+## 1. Go live (done 2026-10-12)
 
-- [ ] Create the GitHub repo, add the remote, push `main`.
-- [ ] Server: `docker network create shared` (skip if it already exists).
-- [ ] Server: split Caddy into its own stack attached to `shared`; site block
+- [x] Create the GitHub repo, add the remote, push `main`.
+- [x] Server: `docker network create shared` (skip if it already exists).
+- [x] Server: split Caddy into its own stack attached to `shared`; site block
       `koffeinkonto.<domain> { reverse_proxy koffeinkonto:80 }`.
-- [ ] Server: clone the repo with a read-only deploy key to
+- [x] Server: clone the repo with a read-only deploy key to
       `/opt/prod/Koffeinkonto`; SSH on port 2222.
-- [ ] Repo secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
+- [x] Repo secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
       `VPS_HOST_FINGERPRINT` (host key `SHA256:` fingerprint).
-- [ ] First push: watch CI and deploy; fix anything the local checks could
+- [x] First push: watch CI and deploy; fix anything the local checks could
       not catch (workflow and devcontainer were only syntax-validated).
-- [ ] Open the devcontainer once to confirm `npm ci` and
+- [x] Open the devcontainer once to confirm `npm ci` and
       `npx playwright install --with-deps chromium` succeed.
 
 ## 2. Product (next spec → plan cycle, start with brainstorming)
