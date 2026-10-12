@@ -1,0 +1,11 @@
+services:
+  koffeinkonto:
+    build: .
+    container_name: koffeinkonto
+    restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
