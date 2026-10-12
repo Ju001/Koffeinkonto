@@ -12,24 +12,30 @@
 
 ## Global Constraints
 
-- State persists in `localStorage` only; no backend, no online database (this plan adds no persistence code).
+- State persists in browser-local storage only (`localStorage` primary, IndexedDB mirror on the same device); no backend, no online database, nothing is sent over the network.
 - One user per device; no cross-device sync.
 - App must be installable as a PWA and work offline after first load.
 - Container serves static files via `nginx:alpine`; compose service publishes **no ports** and attaches to the external network `web`.
 - No TLS handling inside the project; Caddy (external) terminates HTTPS.
 - Deploy builds on the server (`docker compose up -d --build`); no registry.
 - Required secrets: `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_KNOWN_HOSTS`, optional `DEPLOY_PATH`.
-- Node major version: 24 (single source of truth is `.nvmrc`).
-- Every commit message ends with the trailer line `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>` (passed as a second `-m`).
+- Node major version: 24, the current LTS (single source of truth is `.nvmrc`; Node 26 is not yet LTS).
+- Use the latest stable release of every package, image, and GitHub Action (as of 2026-10-12: Svelte 5.57, Vite 8.3, Vitest 5.0, vite-plugin-svelte 7.3, vite-plugin-pwa 2.0, Playwright 1.64, ESLint 10.12, `actions/checkout@v7`, `actions/setup-node@v7`, `actions/upload-artifact@v7`). Do not pin old versions. Single exception: TypeScript is pinned to `^6` because `typescript-eslint` (`<6.1`) and `svelte-check` (`^5 || ^6`) do not yet support TypeScript 7. Re-check with `npm view <pkg> peerDependencies` and move to 7 once both do.
+- Never add co-author or any other attribution trailers to commit messages; the user has said "never co-author".
+- Persistence must tolerate eviction or corruption of any single browser storage backend (see Task 2) while remaining browser-local only.
 - Only the cup UI, balance logic, and final styling are out of scope here (follow-up spec).
 
 ## Review Focus
 
-- Reloading or deep-linking an unknown path (e.g. `/foo/bar`) must serve the app, not a 404 (Task 4 verifies via curl).
-- `sw.js`, `index.html`, and `manifest.webmanifest` must not be cached long-term, otherwise users get stuck on stale versions (Task 4 verifies headers).
-- After the first load, going offline and reloading must still render the app (Task 3 e2e test).
+- Reloading or deep-linking an unknown path (e.g. `/foo/bar`) must serve the app, not a 404 (Task 5 verifies via curl).
+- `sw.js`, `index.html`, and `manifest.webmanifest` must not be cached long-term, otherwise users get stuck on stale versions (Task 5 verifies headers).
+- After the first load, going offline and reloading must still render the app (Task 4 e2e test).
 - Money formatting of 0, negative, and large cent amounts must be sane (Task 1 unit tests).
-- A deploy with a changed/unknown server host key or missing secret must fail the job, not silently continue or trust-on-first-use (Task 6: strict host key checking, `set -euo pipefail`).
+- A deploy with a changed/unknown server host key or missing secret must fail the job, not silently continue or trust-on-first-use (Task 7: strict host key checking, `set -euo pipefail`).
+- If `localStorage` is wiped (or corrupted), the account must come back from the IndexedDB mirror, and the primary must be healed (Task 2 unit tests, Task 4 e2e).
+- If IndexedDB is unavailable (e.g. private mode), the app must still load and save using `localStorage` alone (Task 2 unit test "still loads when one backend throws").
+- A hand-edited, truncated, or wrong-version backup file must be rejected without touching the stored account (Task 2 `parseAccount` tests, Task 4 e2e).
+- When nothing stored is valid, the app must say so and must not overwrite the raw data on its own (Task 2 "reports corrupt" test).
 
 ## File Structure
 
@@ -104,9 +110,9 @@ test-results
 
 Run:
 ```bash
-npm install -D svelte @sveltejs/vite-plugin-svelte vite typescript @tsconfig/svelte svelte-check vite-plugin-pwa vitest sharp
+npm install -D svelte @sveltejs/vite-plugin-svelte vite "typescript@^6" @tsconfig/svelte svelte-check vite-plugin-pwa workbox-build workbox-window vitest sharp
 ```
-Expected: installs without peer-dependency errors. If `vite-plugin-pwa` reports a peer conflict with the installed `vite`, install the `vite` major it supports.
+Expected: installs the latest stable of each without peer-dependency errors (`vite-plugin-pwa` 2.x requires `workbox-build` and `workbox-window` as explicit peers; TypeScript stays on 6.x, see Global Constraints). Run `npm ls` afterwards and confirm no `invalid` or `UNMET` entries. Do not use `--force` or `--legacy-peer-deps`.
 
 - [ ] **Step 3: Write the failing test**
 
@@ -342,12 +348,588 @@ Expected: PASS.
 
 ```bash
 git add -A
-git commit -m "feat: scaffold Svelte PWA shell with money helper" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "feat: scaffold Svelte PWA shell with money helper"
 ```
 
 ---
 
-### Task 2: Lint and typecheck
+### Task 2: Resilient browser-local persistence
+
+Browsers can evict or lose a single storage area (storage pressure, "clear site data", Safari's tab eviction, private mode, a corrupt value). The account is therefore written to two independent browser-local backends, `localStorage` (primary) and IndexedDB (mirror), and each is used to heal the other. Persistent storage is requested, and the user can export and import a JSON backup. Nothing leaves the device.
+
+**Files:**
+- Create: `src/lib/account.ts`, `src/lib/account.test.ts`
+- Create: `src/lib/persistence.ts`, `src/lib/persistence.test.ts`
+- Create: `src/lib/kv.ts`
+- Modify: `src/App.svelte`
+
+**Interfaces:**
+- Produces (`src/lib/account.ts`):
+  - `type EventType = 'topup' | 'coffee'`
+  - `interface AccountEvent { id: string; ts: number; type: EventType; cents: number }`
+  - `interface Account { v: 1; priceCents: number; events: AccountEvent[]; updatedAt: number }`
+  - `const DEFAULT_PRICE_CENTS = 20`
+  - `emptyAccount(now?: number): Account`
+  - `parseAccount(raw: string | null): Account | null` (strict validation; returns a normalised copy or `null`)
+  - `exportAccount(account: Account): string` (pretty JSON)
+- Produces (`src/lib/persistence.ts`):
+  - `interface KV { get(key: string): Promise<string | null>; set(key: string, value: string): Promise<void> }`
+  - `const STORAGE_KEY = 'koffeinkonto.account'`
+  - `type LoadStatus = 'ok' | 'restored' | 'empty' | 'corrupt'`
+  - `loadAccount(primary: KV, mirror: KV, now?: number): Promise<{ account: Account; status: LoadStatus }>`
+  - `saveAccount(account: Account, primary: KV, mirror: KV, now?: number): Promise<Account>` (stamps `updatedAt`, rejects only if both backends fail)
+- Produces (`src/lib/kv.ts`): `localStorageKV: KV`, `indexedDbKV: KV`, `requestPersistentStorage(): Promise<boolean>`
+- Consumes: `formatEuro` from Task 1.
+
+- [ ] **Step 1: Write the failing account tests**
+
+`src/lib/account.test.ts`:
+```ts
+import { describe, expect, it } from 'vitest';
+import {
+  DEFAULT_PRICE_CENTS,
+  emptyAccount,
+  exportAccount,
+  parseAccount,
+} from './account';
+
+const valid = {
+  v: 1,
+  priceCents: 25,
+  updatedAt: 1000,
+  events: [
+    { id: 'a', ts: 1, type: 'topup', cents: 500 },
+    { id: 'b', ts: 2, type: 'coffee', cents: 25 },
+  ],
+};
+
+describe('emptyAccount', () => {
+  it('has the default price and no events', () => {
+    const a = emptyAccount(5);
+    expect(a).toEqual({ v: 1, priceCents: DEFAULT_PRICE_CENTS, events: [], updatedAt: 5 });
+  });
+});
+
+describe('parseAccount', () => {
+  it('accepts a valid account', () => {
+    expect(parseAccount(JSON.stringify(valid))).toEqual(valid);
+  });
+  it('round-trips through exportAccount', () => {
+    expect(parseAccount(exportAccount(valid as never))).toEqual(valid);
+  });
+  it('rejects null and empty input', () => {
+    expect(parseAccount(null)).toBeNull();
+    expect(parseAccount('')).toBeNull();
+  });
+  it('rejects invalid JSON', () => {
+    expect(parseAccount('{not json')).toBeNull();
+  });
+  it('rejects non-objects', () => {
+    expect(parseAccount('[]')).toBeNull();
+    expect(parseAccount('42')).toBeNull();
+    expect(parseAccount('null')).toBeNull();
+  });
+  it('rejects an unknown version', () => {
+    expect(parseAccount(JSON.stringify({ ...valid, v: 2 }))).toBeNull();
+  });
+  it('rejects a zero, negative, or fractional price', () => {
+    for (const priceCents of [0, -5, 0.5, Number.NaN]) {
+      expect(parseAccount(JSON.stringify({ ...valid, priceCents }))).toBeNull();
+    }
+  });
+  it('rejects malformed events', () => {
+    const bad = [
+      { id: 'a', ts: 1, type: 'refund', cents: 5 },
+      { id: 'a', ts: 1, type: 'topup', cents: 0 },
+      { id: 'a', ts: 1, type: 'topup', cents: 1.5 },
+      { id: 1, ts: 1, type: 'topup', cents: 5 },
+      { id: 'a', type: 'topup', cents: 5 },
+    ];
+    for (const e of bad) {
+      expect(parseAccount(JSON.stringify({ ...valid, events: [e] }))).toBeNull();
+    }
+  });
+  it('drops unknown extra properties', () => {
+    const parsed = parseAccount(JSON.stringify({ ...valid, evil: true }));
+    expect(parsed).toEqual(valid);
+    expect(parsed).not.toHaveProperty('evil');
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `npx vitest run src/lib/account.test.ts`
+Expected: FAIL — cannot resolve `./account`.
+
+- [ ] **Step 3: Implement account module**
+
+`src/lib/account.ts`:
+```ts
+export type EventType = 'topup' | 'coffee';
+
+export interface AccountEvent {
+  id: string;
+  ts: number;
+  type: EventType;
+  cents: number;
+}
+
+export interface Account {
+  v: 1;
+  priceCents: number;
+  events: AccountEvent[];
+  updatedAt: number;
+}
+
+export const DEFAULT_PRICE_CENTS = 20;
+
+export function emptyAccount(now: number = Date.now()): Account {
+  return { v: 1, priceCents: DEFAULT_PRICE_CENTS, events: [], updatedAt: now };
+}
+
+const isPositiveInt = (n: unknown): n is number =>
+  typeof n === 'number' && Number.isInteger(n) && n > 0;
+
+const isRecord = (x: unknown): x is Record<string, unknown> =>
+  typeof x === 'object' && x !== null && !Array.isArray(x);
+
+function parseEvent(x: unknown): AccountEvent | null {
+  if (!isRecord(x)) return null;
+  const { id, ts, type, cents } = x;
+  if (typeof id !== 'string' || id === '') return null;
+  if (typeof ts !== 'number' || !Number.isFinite(ts)) return null;
+  if (type !== 'topup' && type !== 'coffee') return null;
+  if (!isPositiveInt(cents)) return null;
+  return { id, ts, type, cents };
+}
+
+/** Strictly validate serialized account data. Returns a normalised copy or null. */
+export function parseAccount(raw: string | null): Account | null {
+  if (!raw) return null;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!isRecord(data) || data.v !== 1) return null;
+  const { priceCents, updatedAt, events } = data;
+  if (!isPositiveInt(priceCents)) return null;
+  if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt)) return null;
+  if (!Array.isArray(events)) return null;
+  const parsed: AccountEvent[] = [];
+  for (const e of events) {
+    const ev = parseEvent(e);
+    if (!ev) return null;
+    parsed.push(ev);
+  }
+  return { v: 1, priceCents, events: parsed, updatedAt };
+}
+
+export function exportAccount(account: Account): string {
+  return JSON.stringify(account, null, 2);
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npx vitest run src/lib/account.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Write the failing persistence tests**
+
+`src/lib/persistence.test.ts`:
+```ts
+import { describe, expect, it } from 'vitest';
+import { emptyAccount, exportAccount, type Account } from './account';
+import { loadAccount, saveAccount, STORAGE_KEY, type KV } from './persistence';
+
+function memKV(initial?: string): KV & { raw(): string | null } {
+  let value: string | null = initial ?? null;
+  return {
+    async get() {
+      return value;
+    },
+    async set(_k, v) {
+      value = v;
+    },
+    raw: () => value,
+  };
+}
+
+const throwingKV: KV = {
+  async get() {
+    throw new Error('unavailable');
+  },
+  async set() {
+    throw new Error('unavailable');
+  },
+};
+
+const acct = (updatedAt: number, priceCents = 20): Account => ({
+  v: 1,
+  priceCents,
+  updatedAt,
+  events: [{ id: 'a', ts: 1, type: 'topup', cents: 500 }],
+});
+
+describe('loadAccount', () => {
+  it('returns an empty account and writes nothing on first run', async () => {
+    const p = memKV();
+    const m = memKV();
+    const r = await loadAccount(p, m, 7);
+    expect(r.status).toBe('empty');
+    expect(r.account).toEqual(emptyAccount(7));
+    expect(p.raw()).toBeNull();
+    expect(m.raw()).toBeNull();
+  });
+
+  it('round-trips a saved account', async () => {
+    const p = memKV();
+    const m = memKV();
+    const saved = await saveAccount(acct(1), p, m, 100);
+    expect(saved.updatedAt).toBe(100);
+    const r = await loadAccount(p, m);
+    expect(r.status).toBe('ok');
+    expect(r.account).toEqual(saved);
+    expect(p.raw()).toBe(m.raw());
+  });
+
+  it('restores primary from the mirror when primary was wiped', async () => {
+    const m = memKV(exportAccount(acct(5)));
+    const p = memKV();
+    const r = await loadAccount(p, m);
+    expect(r.status).toBe('restored');
+    expect(r.account).toEqual(acct(5));
+    expect(p.raw()).not.toBeNull();
+  });
+
+  it('restores primary when it holds corrupt data', async () => {
+    const p = memKV('{garbage');
+    const m = memKV(exportAccount(acct(5)));
+    const r = await loadAccount(p, m);
+    expect(r.status).toBe('restored');
+    expect(r.account).toEqual(acct(5));
+    expect(p.raw()).toBe(m.raw());
+  });
+
+  it('heals a wiped mirror from primary', async () => {
+    const p = memKV(exportAccount(acct(5)));
+    const m = memKV();
+    const r = await loadAccount(p, m);
+    expect(r.status).toBe('ok');
+    expect(m.raw()).toBe(p.raw());
+  });
+
+  it('prefers the newer copy and updates the stale one', async () => {
+    const p = memKV(exportAccount(acct(1, 20)));
+    const m = memKV(exportAccount(acct(9, 30)));
+    const r = await loadAccount(p, m);
+    expect(r.account.priceCents).toBe(30);
+    expect(r.status).toBe('restored');
+    expect(p.raw()).toBe(m.raw());
+  });
+
+  it('reports corrupt and does not overwrite when nothing is valid', async () => {
+    const p = memKV('{bad');
+    const m = memKV('also bad');
+    const r = await loadAccount(p, m, 3);
+    expect(r.status).toBe('corrupt');
+    expect(r.account).toEqual(emptyAccount(3));
+    expect(p.raw()).toBe('{bad');
+    expect(m.raw()).toBe('also bad');
+  });
+
+  it('still loads when one backend throws', async () => {
+    const m = memKV(exportAccount(acct(5)));
+    const r = await loadAccount(throwingKV, m);
+    expect(r.account).toEqual(acct(5));
+    expect(r.status).toBe('restored');
+  });
+
+  it('uses the documented storage key', () => {
+    expect(STORAGE_KEY).toBe('koffeinkonto.account');
+  });
+});
+
+describe('saveAccount', () => {
+  it('succeeds when only one backend accepts the write', async () => {
+    const m = memKV();
+    await expect(saveAccount(acct(1), throwingKV, m)).resolves.toBeDefined();
+    expect(m.raw()).not.toBeNull();
+  });
+
+  it('rejects when both backends fail', async () => {
+    await expect(saveAccount(acct(1), throwingKV, throwingKV)).rejects.toThrow();
+  });
+});
+```
+
+- [ ] **Step 6: Run to verify it fails**
+
+Run: `npx vitest run src/lib/persistence.test.ts`
+Expected: FAIL — cannot resolve `./persistence`.
+
+- [ ] **Step 7: Implement persistence module**
+
+`src/lib/persistence.ts`:
+```ts
+import { emptyAccount, exportAccount, parseAccount, type Account } from './account';
+
+export interface KV {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+}
+
+export const STORAGE_KEY = 'koffeinkonto.account';
+
+export type LoadStatus = 'ok' | 'restored' | 'empty' | 'corrupt';
+
+async function safeGet(kv: KV): Promise<string | null> {
+  try {
+    return await kv.get(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+async function safeSet(kv: KV, value: string): Promise<boolean> {
+  try {
+    await kv.set(STORAGE_KEY, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load the account from two independent backends and heal whichever one is
+ * missing, stale, or corrupt. Never overwrites data when nothing is valid.
+ */
+export async function loadAccount(
+  primary: KV,
+  mirror: KV,
+  now: number = Date.now(),
+): Promise<{ account: Account; status: LoadStatus }> {
+  const [rawP, rawM] = await Promise.all([safeGet(primary), safeGet(mirror)]);
+  const p = parseAccount(rawP);
+  const m = parseAccount(rawM);
+
+  if (p && m) {
+    if (m.updatedAt > p.updatedAt) {
+      await safeSet(primary, exportAccount(m));
+      return { account: m, status: 'restored' };
+    }
+    if (p.updatedAt > m.updatedAt) await safeSet(mirror, exportAccount(p));
+    return { account: p, status: 'ok' };
+  }
+  if (p) {
+    await safeSet(mirror, exportAccount(p));
+    return { account: p, status: 'ok' };
+  }
+  if (m) {
+    await safeSet(primary, exportAccount(m));
+    return { account: m, status: 'restored' };
+  }
+  const present = rawP !== null || rawM !== null;
+  return { account: emptyAccount(now), status: present ? 'corrupt' : 'empty' };
+}
+
+/** Write to both backends. Rejects only if neither accepted the write. */
+export async function saveAccount(
+  account: Account,
+  primary: KV,
+  mirror: KV,
+  now: number = Date.now(),
+): Promise<Account> {
+  const stamped: Account = { ...account, updatedAt: now };
+  const raw = exportAccount(stamped);
+  const results = await Promise.all([safeSet(primary, raw), safeSet(mirror, raw)]);
+  if (!results.some(Boolean)) {
+    throw new Error('No browser storage backend accepted the write');
+  }
+  return stamped;
+}
+```
+
+- [ ] **Step 8: Run to verify it passes**
+
+Run: `npx vitest run`
+Expected: PASS for money, account, and persistence tests.
+
+- [ ] **Step 9: Implement browser backends and persistent-storage request**
+
+`src/lib/kv.ts`:
+```ts
+import type { KV } from './persistence';
+
+export const localStorageKV: KV = {
+  async get(key) {
+    return localStorage.getItem(key);
+  },
+  async set(key, value) {
+    localStorage.setItem(key, value);
+  },
+};
+
+const DB_NAME = 'koffeinkonto';
+const STORE = 'kv';
+let dbPromise: Promise<IDBDatabase> | undefined;
+
+function openDb(): Promise<IDBDatabase> {
+  dbPromise ??= new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbPromise;
+}
+
+async function run<T>(
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
+  const db = await openDb();
+  return new Promise<T>((resolve, reject) => {
+    const tx = db.transaction(STORE, mode);
+    const req = fn(tx.objectStore(STORE));
+    tx.oncomplete = () => resolve(req.result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+export const indexedDbKV: KV = {
+  async get(key) {
+    const v = await run('readonly', (s) => s.get(key));
+    return typeof v === 'string' ? v : null;
+  },
+  async set(key, value) {
+    await run('readwrite', (s) => s.put(value, key));
+  },
+};
+
+/**
+ * Ask the browser not to evict our storage. Browsers may refuse (e.g. when the
+ * site is not installed or has low engagement); callers should surface that.
+ */
+export async function requestPersistentStorage(): Promise<boolean> {
+  if (!navigator.storage?.persist) return false;
+  if (await navigator.storage.persisted()) return true;
+  return navigator.storage.persist();
+}
+```
+
+- [ ] **Step 10: Wire the shell (status, restore notice, export/import)**
+
+`src/App.svelte`:
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { exportAccount, parseAccount, type Account } from './lib/account';
+  import { formatEuro } from './lib/money';
+  import { loadAccount, saveAccount, type LoadStatus } from './lib/persistence';
+  import { indexedDbKV, localStorageKV, requestPersistentStorage } from './lib/kv';
+
+  let account = $state<Account | null>(null);
+  let status = $state<LoadStatus | null>(null);
+  let persisted = $state<boolean | null>(null);
+  let importError = $state('');
+
+  onMount(async () => {
+    const result = await loadAccount(localStorageKV, indexedDbKV);
+    account = result.account;
+    status = result.status;
+    persisted = await requestPersistentStorage();
+  });
+
+  function downloadBackup() {
+    if (!account) return;
+    const blob = new Blob([exportAccount(account)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `koffeinkonto-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function importBackup(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    const parsed = parseAccount(await file.text());
+    if (!parsed) {
+      importError = 'This file is not a valid Koffeinkonto backup.';
+      return;
+    }
+    try {
+      account = await saveAccount(parsed, localStorageKV, indexedDbKV);
+      status = 'ok';
+      importError = '';
+    } catch {
+      importError = 'Could not save: browser storage is unavailable.';
+    }
+  }
+</script>
+
+<main>
+  <h1>Koffeinkonto</h1>
+  <p>Your prepaid coffee account.</p>
+
+  {#if account}
+    <p data-testid="account-summary">
+      {account.events.length} entries · {formatEuro(account.priceCents)} per coffee
+    </p>
+  {/if}
+
+  {#if status === 'restored'}
+    <p data-testid="restore-notice">Your account was recovered from a backup copy.</p>
+  {:else if status === 'corrupt'}
+    <p data-testid="corrupt-notice">
+      Stored data could not be read. Import a backup to recover it.
+    </p>
+  {/if}
+
+  {#if persisted !== null}
+    <p data-testid="storage-status">
+      {persisted
+        ? 'Storage protected.'
+        : 'The browser may clear this data. Export a backup regularly.'}
+    </p>
+  {/if}
+
+  <div class="actions">
+    <button type="button" onclick={downloadBackup} disabled={!account}>Export backup</button>
+    <label class="button">
+      Import backup
+      <input type="file" accept="application/json" data-testid="import-input" onchange={importBackup} hidden />
+    </label>
+  </div>
+
+  {#if importError}
+    <p role="alert" data-testid="import-error">{importError}</p>
+  {/if}
+</main>
+```
+
+- [ ] **Step 11: Verify types and build**
+
+Run: `npm run check && npm test && npm run build`
+Expected: all succeed. (The Playwright coverage of restore-from-mirror and import rejection is added in Task 4.)
+
+- [ ] **Step 12: Commit**
+
+```bash
+git add -A
+git commit -m "feat: add resilient local persistence with mirror and backup"
+```
+
+---
+
+### Task 3: Lint and typecheck
 
 **Files:**
 - Create: `eslint.config.js`
@@ -410,18 +992,18 @@ Expected: FAIL with a type error. Then revert the line and re-run until clean.
 
 ```bash
 git add -A
-git commit -m "chore: add eslint and svelte-check" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "chore: add eslint and svelte-check"
 ```
 
 ---
 
-### Task 3: Playwright smoke and offline test
+### Task 4: Playwright smoke and offline test
 
 **Files:**
-- Create: `playwright.config.ts`, `e2e/smoke.spec.ts`
+- Create: `playwright.config.ts`, `e2e/smoke.spec.ts`, `e2e/persistence.spec.ts`
 
 **Interfaces:**
-- Consumes: `npm run build`, `npm run preview` from Task 1.
+- Consumes: `npm run build`, `npm run preview` from Task 1; the `data-testid` hooks `account-summary`, `restore-notice`, `import-input`, `import-error`, `storage-status` from Task 2.
 - Produces: `npm run test:e2e` runs against a production build on port 4173.
 
 - [ ] **Step 1: Install Playwright**
@@ -472,6 +1054,59 @@ test('works offline after the first load', async ({ page, context }) => {
 });
 ```
 
+`e2e/persistence.spec.ts`:
+```ts
+import { expect, test, type Page } from '@playwright/test';
+
+const backup = {
+  v: 1,
+  priceCents: 25,
+  updatedAt: 1,
+  events: [{ id: 'a', ts: 1, type: 'topup', cents: 500 }],
+};
+
+async function importBackup(page: Page, content: string) {
+  await page.getByTestId('import-input').setInputFiles({
+    name: 'backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(content),
+  });
+}
+
+test('restores the account from the mirror when localStorage is wiped', async ({ page }) => {
+  await page.goto('/');
+  await importBackup(page, JSON.stringify(backup));
+  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  await expect(page.getByTestId('account-summary')).toContainText('1 entries');
+
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+
+  await expect(page.getByTestId('restore-notice')).toBeVisible();
+  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+  const healed = await page.evaluate(() => localStorage.getItem('koffeinkonto.account'));
+  expect(healed).not.toBeNull();
+});
+
+test('rejects an invalid backup without touching the stored account', async ({ page }) => {
+  await page.goto('/');
+  await importBackup(page, JSON.stringify(backup));
+  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+
+  await importBackup(page, '{"v":2,"priceCents":-1}');
+  await expect(page.getByTestId('import-error')).toBeVisible();
+  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+
+  await page.reload();
+  await expect(page.getByTestId('account-summary')).toContainText('0,25');
+});
+
+test('reports storage protection status', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('storage-status')).toBeVisible();
+});
+```
+
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run: `npm run test:e2e`
@@ -506,18 +1141,18 @@ export default defineConfig({
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `npm run test:e2e`
-Expected: 3 passed. If the offline test fails because the service worker is not controlling the page, confirm `registerType`/inject settings in `vite.config.ts` produce `registerSW.js` in `dist/` and that `npm run build` ran (the webServer command does this).
+Expected: 6 passed. If the offline test fails because the service worker is not controlling the page, confirm `registerType`/inject settings in `vite.config.ts` produce `registerSW.js` in `dist/` and that `npm run build` ran (the webServer command does this).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add -A
-git commit -m "test: add Playwright smoke and offline tests" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "test: add Playwright smoke and offline tests"
 ```
 
 ---
 
-### Task 4: Container image and compose
+### Task 5: Container image and compose
 
 **Files:**
 - Create: `Dockerfile`, `.dockerignore`, `docker/nginx.conf`, `docker-compose.yml`
@@ -613,7 +1248,7 @@ Run:
 docker build -t koffeinkonto:test .
 docker run -d --rm --name kk-test -p 8081:80 koffeinkonto:test
 ```
-Expected: build succeeds; container starts. If Docker is unavailable in this environment, skip Steps 2–4 and rely on the CI job in Task 6 to build the image (state this in the task report).
+Expected: build succeeds; container starts. If Docker is unavailable in this environment, skip Steps 2–4 and rely on the CI job in Task 7 to build the image (state this in the task report).
 
 - [ ] **Step 3: Verify routing and caching**
 
@@ -640,18 +1275,18 @@ Expected: `OK`. (Running `up` locally requires `docker network create web` first
 
 ```bash
 git add -A
-git commit -m "feat: add Dockerfile, nginx config and compose" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "feat: add Dockerfile, nginx config and compose"
 ```
 
 ---
 
-### Task 5: Devcontainer
+### Task 6: Devcontainer
 
 **Files:**
 - Create: `.devcontainer/devcontainer.json`
 
 **Interfaces:**
-- Consumes: `.nvmrc` Node 24, `npm ci`, Playwright install command from Task 3.
+- Consumes: `.nvmrc` Node 24, `npm ci`, Playwright install command from Task 4.
 
 - [ ] **Step 1: Write the config**
 
@@ -690,12 +1325,12 @@ Expected: `valid`. If the devcontainer CLI is installed, additionally run `devco
 
 ```bash
 git add -A
-git commit -m "chore: add devcontainer" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "chore: add devcontainer"
 ```
 
 ---
 
-### Task 6: CI and deploy workflow
+### Task 7: CI and deploy workflow
 
 **Files:**
 - Create: `.github/workflows/ci.yml`
@@ -721,8 +1356,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -735,7 +1370,7 @@ jobs:
       - run: npm run test:e2e
       - name: Verify Docker image builds
         run: docker build -t koffeinkonto:ci .
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -782,12 +1417,12 @@ Expected: `valid yaml`. If `actionlint` is available, run `actionlint` and expec
 
 ```bash
 git add -A
-git commit -m "ci: add test and SSH deploy workflow" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "ci: add test and SSH deploy workflow"
 ```
 
 ---
 
-### Task 7: README and server setup guide
+### Task 8: README and server setup guide
 
 **Files:**
 - Create: `README.md`
@@ -859,9 +1494,19 @@ success the `deploy` job SSHes to the server and runs
 
 ## Notes
 
-- Data is per browser and origin. Clearing site data erases the balance.
-- The installed PWA and a normal browser tab may not share storage on every
-  platform (notably iOS).
+- Data never leaves the device. It is written to two browser-local backends
+  (`localStorage` and IndexedDB); if one is cleared or corrupted, the other
+  restores it automatically.
+- The app asks the browser for persistent storage. Browsers may refuse unless
+  the app is installed; the UI then recommends regular backups.
+- Clearing *all* site data (both backends) still erases the account. Use
+  "Export backup" regularly, and "Import backup" to restore or to move the
+  account to another device.
+- Data is per browser and origin. The installed PWA and a normal browser tab
+  may not share storage on every platform (notably iOS). On iOS, install the
+  app to the home screen; Safari tabs evict unused site data after about
+  seven days.
+- Concurrent edits from two tabs of the same browser are last-write-wins.
 ````
 
 - [ ] **Step 2: Verify commands in the README match the repo**
@@ -873,14 +1518,14 @@ Expected: all six scripts present.
 
 ```bash
 git add -A
-git commit -m "docs: add README with dev, docker and deploy guide" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+git commit -m "docs: add README with dev, docker and deploy guide"
 ```
 
 ---
 
 ## Self-Review (done)
 
-- **Spec coverage:** stack (Tasks 1–3), PWA + offline (1, 3), container with caching and SPA fallback and external `web` network (4), devcontainer with Docker CLI and Playwright (5), CI + SSH deploy with secrets (6), README with server prerequisites (7). The app logic, data model, and export/import are explicitly deferred to the follow-up spec.
+- **Spec coverage:** stack (Tasks 1, 3, 4), PWA + offline (1, 4), persistence resilience with mirror, persistent-storage request, and export/import (2, 4), container with caching and SPA fallback and external `web` network (5), devcontainer with Docker CLI and Playwright (6), CI + SSH deploy with secrets (7), README with server prerequisites (8). The cup UI, balance operations, price setting, and final styling are deferred to the follow-up spec.
 - **Placeholders:** none; every step shows its content or exact command.
-- **Type consistency:** `formatEuro(cents: number): string` is the only shared interface and is used consistently.
-- **Review Focus:** SPA fallback and cache headers (Task 4 Step 3), offline (Task 3), money edge cases (Task 1), strict host key / missing secrets (Task 6).
+- **Type consistency:** `formatEuro`, `Account`, `AccountEvent`, `parseAccount`, `exportAccount`, `KV`, `loadAccount`, `saveAccount`, `localStorageKV`, `indexedDbKV`, and `requestPersistentStorage` are defined once (Tasks 1–2) and used with identical signatures in `App.svelte` and the tests.
+- **Review Focus:** SPA fallback and cache headers (Task 5 Step 3), offline (Task 4), money edge cases (Task 1), strict host key / missing secrets (Task 7), storage wipe/corruption/unavailable backend and invalid backup (Tasks 2 and 4).

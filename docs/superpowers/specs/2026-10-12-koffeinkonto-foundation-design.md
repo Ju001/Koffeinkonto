@@ -1,7 +1,7 @@
 # Koffeinkonto – Foundation Design
 
 Date: 2026-10-12
-Status: Draft for review
+Status: Approved; updated 2026-10-12 with persistence resilience and version policy
 
 ## Purpose
 
@@ -27,6 +27,10 @@ spec → plan cycle.
 
 ## Tech stack
 
+Latest stable releases of all packages, images, and actions (verified
+2026-10-12). Exception: TypeScript stays on 6.x until `typescript-eslint` and
+`svelte-check` support 7. Node 24 (current LTS).
+
 | Concern | Choice |
 |---|---|
 | UI framework | Svelte + TypeScript |
@@ -48,25 +52,49 @@ spec → plan cycle.
 
 ### Data model
 
-One versioned `localStorage` key:
+One versioned, validated JSON document:
 
 ```
-{ v: 1, priceCents: 20, events: [{ id, ts, type: "topup" | "coffee", cents }] }
+{ v: 1, priceCents: 20, updatedAt: <ms>, events: [{ id, ts, type: "topup" | "coffee", cents }] }
 ```
 
 - Money is integer cents. Balance is the sum of events; coffees left is
   `floor(balance / priceCents)`.
 - Undo removes the last event.
-- Logic lives in a pure module (no DOM) so it is unit-testable.
-- JSON export/import is the backup and device-migration path.
-- Request persistent storage (`navigator.storage.persist()`); show a small
-  "last backup" hint.
+- Logic lives in pure modules (no DOM) so it is unit-testable.
+
+### Persistence resilience
+
+Browsers can evict or lose a single storage area (storage pressure, "clear
+site data", Safari's tab eviction, private mode, a corrupted value). All
+mitigations stay on the device; nothing is sent over the network.
+
+1. **Dual write.** Every save writes the document to `localStorage` (primary)
+   and IndexedDB (mirror). Each save stamps `updatedAt`.
+2. **Self-healing load.** On start, both copies are read and validated. The
+   newest valid copy wins and the other is rewritten. If only the mirror
+   survives, the app restores the primary and tells the user.
+3. **Never silently overwrite.** If stored data exists but nothing validates,
+   the app reports it and offers backup import; it does not replace the raw
+   data on its own.
+4. **Degrade, don't fail.** If one backend is unavailable (e.g. IndexedDB in
+   private mode), the app works with the other. A save fails only if both fail.
+5. **Persistent storage request.** `navigator.storage.persist()` is requested;
+   if refused, the UI says the browser may clear the data and recommends a
+   backup.
+6. **Export/import.** JSON backup download and strict-validated import; also
+   the device-migration path. A "last backup" reminder comes with the full UI
+   in the follow-up spec.
+7. **iOS.** Installed (home-screen) PWAs are exempt from Safari's seven-day
+   eviction of unused site data; the README recommends installing.
+
+Known limit: clearing all site data (both backends) still erases the account.
+Concurrent edits from two tabs are last-write-wins.
 
 ### Storage caveats
 
 Storage is per browser and origin. An installed PWA and the same site in a
 normal browser tab may not share data (platform-dependent, notably iOS).
-Clearing site data wipes the account; export/import mitigates this.
 
 ## Container
 
@@ -117,6 +145,7 @@ Server prerequisites: Docker with compose plugin, a git checkout of the repo
 
 In scope:
 - Repo scaffold (Svelte + Vite + TS + PWA plugin) with a minimal shell page
+- Persistence layer (dual-write, self-healing load, export/import) and tests
 - Vitest and Playwright set up with one trivial test each
 - `Dockerfile`, nginx config, `docker-compose.yml`
 - `.devcontainer/`
@@ -124,8 +153,8 @@ In scope:
 - README covering local dev, server prerequisites, and secrets
 
 Out of scope (follow-up spec):
-- Cup button UI, balance logic, top-up, price setting, export/import, icons
-  and final styling
+- Cup button UI, balance operations (top-up, drink, undo), price setting,
+  backup reminder, final icons and styling
 
 ## Out of scope entirely
 
@@ -135,5 +164,5 @@ Cross-device sync, accounts, multi-currency, any backend.
 
 - Build-on-server consumes vserver CPU/RAM during deploys; acceptable for a
   small static app, revisit if the server is constrained.
-- localStorage eviction or user clearing data loses the balance; mitigated by
-  persistent storage request and export/import.
+- Clearing all site data loses the balance; mitigated by the mirror,
+  persistent storage request, and export/import.
