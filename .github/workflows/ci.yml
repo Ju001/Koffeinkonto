@@ -47,6 +47,7 @@ jobs:
           SSH_KEY: ${{ secrets.SSH_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           for v in SSH_HOST SSH_USER SSH_KEY SSH_KNOWN_HOSTS; do
@@ -61,4 +62,4 @@ jobs:
               -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
               -o BatchMode=yes \
               "$SSH_USER@$SSH_HOST" \
-              "set -euo pipefail; cd '${DEPLOY_PATH:-koffeinkonto}' && git pull --ff-only && docker compose up -d --build && docker image prune -f"
+              "set -eu; cd '${DEPLOY_PATH:-koffeinkonto}' && git fetch --quiet origin main && git merge --ff-only $DEPLOY_SHA && docker compose up -d --build && docker image prune -f"

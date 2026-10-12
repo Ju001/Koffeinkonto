@@ -18,7 +18,7 @@
   });
 
   function downloadBackup() {
-    if (!account) return;
+    if (!account || status === 'corrupt') return;
     const blob = new Blob([exportAccount(account)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -51,7 +51,7 @@
   <h1>Koffeinkonto</h1>
   <p>Your prepaid coffee account.</p>
 
-  {#if account}
+  {#if account && status !== 'corrupt'}
     <p data-testid="account-summary">
       {account.events.length} entries · {formatEuro(account.priceCents)} per coffee
     </p>
@@ -74,7 +74,7 @@
   {/if}
 
   <div class="actions">
-    <button type="button" onclick={downloadBackup} disabled={!account}>Export backup</button>
+    <button type="button" onclick={downloadBackup} disabled={!account || status === 'corrupt'}>Export backup</button>
     <label class="button">
       Import backup
       <input

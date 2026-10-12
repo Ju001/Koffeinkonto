@@ -111,7 +111,33 @@ describe('loadAccount', () => {
   });
 });
 
+const hangingKV: KV = {
+  get: () => new Promise<string | null>(() => {}),
+  set: () => new Promise<void>(() => {}),
+};
+
+describe('backend that never responds', () => {
+  it('loadAccount falls back to the other backend instead of hanging', async () => {
+    const p = memKV(exportAccount(acct(5)));
+    const r = await loadAccount(p, hangingKV, 1, 50);
+    expect(r.account).toEqual(acct(5));
+    expect(r.status).toBe('ok');
+  });
+
+  it('saveAccount succeeds on the responsive backend instead of hanging', async () => {
+    const p = memKV();
+    await expect(saveAccount(acct(1), p, hangingKV, 1, 50)).resolves.toBeDefined();
+    expect(p.raw()).not.toBeNull();
+  });
+});
+
 describe('saveAccount', () => {
+  it('never stamps an older updatedAt than the account already has', async () => {
+    // Clock set backwards: now (5) < existing updatedAt (1000).
+    const saved = await saveAccount(acct(1000), memKV(), memKV(), 5);
+    expect(saved.updatedAt).toBe(1001);
+  });
+
   it('succeeds when only one backend accepts the write', async () => {
     const m = memKV();
     await expect(saveAccount(acct(1), throwingKV, m)).resolves.toBeDefined();
