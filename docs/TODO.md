@@ -21,25 +21,25 @@ remote exists. Specs and plans live in `docs/superpowers/`.
 
 ## 2. Product (next spec → plan cycle, start with brainstorming)
 
-- [ ] Cup button UI (cute stylised cup, tap animation, haptics)
-- [ ] Balance display: coffees left and € left (`floor(balance / price)`)
-- [ ] Top-up (add money) and price-per-coffee setting
-- [ ] Drink a coffee (deduct one), undo last event
-- [ ] "Last backup" reminder and export/import polish
-- [ ] Final icons, palette, light/dark styling
+- [x] Cup button UI (cute stylised cup, tap animation, haptics)
+- [x] Balance display: coffees left and € left (`floor(balance / price)`)
+- [x] Top-up (add money) and price-per-coffee setting
+- [x] Drink a coffee (deduct one), undo last event
+- [x] "Last backup" reminder and export/import polish
+- [x] Final icons, palette, light/dark styling
 
-Data model and persistence API already exist: `src/lib/account.ts`,
-`src/lib/persistence.ts`, `src/lib/kv.ts`. The shell in `src/App.svelte` only
-shows status and export/import.
+Implemented per `docs/superpowers/specs/2026-10-12-koffeinkonto-ui-design.md`:
+logic in `src/lib/ops.ts` and `src/lib/store.svelte.ts`, UI in
+`src/App.svelte` and `src/components/`.
 
 ## 3. Deferred review findings (minors)
 
 - [ ] `src/lib/kv.ts`: reopen the IndexedDB connection after failure or
       `onclose`/`onversionchange` (cached `dbPromise` is never reset, so the
       mirror can go silently stale in a long session).
-- [ ] `src/App.svelte` `downloadBackup`: revoke the blob URL in a
+- [x] `src/App.svelte` `downloadBackup`: revoke the blob URL in a
       `setTimeout`; synchronous revoke may yield no file on iOS Safari.
-- [ ] Stale second tab can export outdated data: listen for `storage`
+- [x] Stale second tab can export outdated data: listen for `storage`
       events or reload account before export.
 - [ ] Import: reject files above a few MB before `file.text()`.
 

@@ -1,6 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" fill="#3b2418"/>
-  <path d="M136 200h200v110a70 70 0 0 1-70 70h-60a70 70 0 0 1-70-70z" fill="#f4e3cf"/>
-  <path d="M336 224h26a36 36 0 0 1 0 72h-26" fill="none" stroke="#f4e3cf" stroke-width="22"/>
-  <rect x="116" y="392" width="260" height="18" rx="9" fill="#c8874a"/>
+  <rect width="512" height="512" fill="#f3ede2"/>
+  <g transform="translate(86 120) scale(2)">
+    <ellipse cx="85" cy="128" rx="74" ry="14" fill="#d8d0c0"/>
+    <ellipse cx="85" cy="122" rx="66" ry="11" fill="#fff"/>
+    <path d="M34 50h92v34a46 38 0 0 1-92 0z" fill="#1f5e4b"/>
+    <path d="M126 58h12a16 16 0 0 1 0 32h-16" fill="none" stroke="#1f5e4b" stroke-width="9" stroke-linecap="round"/>
+    <ellipse cx="80" cy="50" rx="46" ry="9" fill="#e9b872"/>
+    <g fill="none" stroke="#a9b3a6" stroke-width="5" stroke-linecap="round">
+      <path d="M60 36c-9-8 9-13 0-22s9-12 0-20"/>
+      <path d="M82 36c-9-8 9-13 0-22s9-12 0-20"/>
+      <path d="M104 36c-9-8 9-13 0-22s9-12 0-20"/>
+    </g>
+  </g>
 </svg>
