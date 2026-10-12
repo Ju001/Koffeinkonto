@@ -49,8 +49,8 @@
     gap: 12px;
     padding: 6px 8px 6px 16px;
     border-radius: 14px;
-    background: var(--fg);
-    color: var(--bg);
+    background: var(--toast-bg);
+    color: var(--toast-fg);
     text-align: left;
   }
 
