@@ -1,15 +1,38 @@
 :root {
   color-scheme: light dark;
-  --bg: #fbf3e8;
-  --fg: #3b2418;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bg: #f3ede2;
+  --fg: #2b1d17;
+  --muted: #6f6a5c;
+  --accent: #1f5e4b;
+  --on-accent: #fff;
+  --crema: #e9b872;
+  --surface: #fff;
+  --surface-edge: #d8d0c0;
+  --steam: #a9b3a6;
+  --focus: #1f5e4b;
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-num: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-ui);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #2a1810;
-    --fg: #f4e3cf;
+    --bg: #1e1712;
+    --fg: #f3ede2;
+    --muted: #b3a898;
+    --accent: #5fb391;
+    --on-accent: #12261d;
+    --surface: #2c231c;
+    --surface-edge: #0f0b08;
+    --steam: #7d8a80;
+    --focus: #5fb391;
   }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
@@ -17,7 +40,30 @@ body {
   min-height: 100dvh;
   background: var(--bg);
   color: var(--fg);
-  display: grid;
-  place-items: center;
   text-align: center;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

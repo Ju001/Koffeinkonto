@@ -12,8 +12,8 @@ export default defineConfig({
         name: 'Koffeinkonto',
         short_name: 'Koffeinkonto',
         description: 'Your prepaid coffee account.',
-        theme_color: '#3b2418',
-        background_color: '#3b2418',
+        theme_color: '#F3EDE2',
+        background_color: '#F3EDE2',
         display: 'standalone',
         start_url: '/',
         icons: [
