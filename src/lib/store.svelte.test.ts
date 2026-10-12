@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyAccount, exportAccount, type Account } from './account';
+import { exportAccount, type Account } from './account';
 import { STORAGE_KEY, type KV } from './persistence';
 import { createStore, LAST_BACKUP_KEY } from './store.svelte';
 
