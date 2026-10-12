@@ -38,26 +38,29 @@ HTTPS is required for PWA installation and the service worker.
 ## Deploy (GitHub Actions)
 
 Pushes to `main` run lint, typecheck, unit tests, build, and e2e tests; on
-success the `deploy` job SSHes to the server and runs
-`git pull --ff-only && docker compose up -d --build`.
+success the `deploy` job (`appleboy/ssh-action`, port 2222) updates the
+checkout on the server and rebuilds the container.
 
 ### Server prerequisites
 
 1. Docker with the compose plugin.
-2. A checkout of this repo (use a read-only deploy key) at `~/koffeinkonto`,
-   or set `DEPLOY_PATH`.
+2. A checkout of this repo (use a read-only deploy key) at
+   `/opt/prod/Koffeinkonto`.
 3. `docker network create web`, and your Caddy attached to that network.
-4. A dedicated SSH user able to run `docker`.
+4. SSH on port 2222 for a user that can run `docker`.
+
+The deploy job runs `git fetch origin main`, fast-forwards to the exact commit
+that passed CI (not whatever `main` is by then), then
+`COMPOSE_PROJECT_NAME=koffeinkonto docker compose up -d --build`.
 
 ### Repository secrets
 
 | Secret | Content |
 |---|---|
-| `SSH_HOST` | Server hostname or IP |
-| `SSH_USER` | SSH user on the server |
-| `SSH_KEY` | Private key (dedicated deploy key) |
-| `SSH_KNOWN_HOSTS` | Output of `ssh-keyscan -t ed25519 <host>`; host key is pinned and strictly checked |
-| `DEPLOY_PATH` | Optional; checkout path on the server (default `koffeinkonto`, relative to the SSH user's home) |
+| `VPS_HOST` | Server hostname or IP |
+| `VPS_USER` | SSH user on the server |
+| `VPS_SSH_KEY` | Private key (dedicated deploy key) |
+| `VPS_HOST_FINGERPRINT` | Server host key fingerprint (`ssh-keygen -lf <(ssh-keyscan -t ed25519 -p 2222 <host>)`, the `SHA256:...` part); without it the action would not verify the host, so the job refuses to run |
 
 ## Notes
 

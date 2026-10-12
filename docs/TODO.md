@@ -10,10 +10,10 @@ remote exists. Specs and plans live in `docs/superpowers/`.
 - [ ] Server: `docker network create web`.
 - [ ] Server: split Caddy into its own stack attached to `web`; site block
       `koffeinkonto.<domain> { reverse_proxy koffeinkonto:80 }`.
-- [ ] Server: clone the repo with a read-only deploy key to `~/koffeinkonto`
-      (or set `DEPLOY_PATH`).
-- [ ] Repo secrets: `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_KNOWN_HOSTS`
-      (`ssh-keyscan -t ed25519 <host>`), optional `DEPLOY_PATH`.
+- [ ] Server: clone the repo with a read-only deploy key to
+      `/opt/prod/Koffeinkonto`; SSH on port 2222.
+- [ ] Repo secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
+      `VPS_HOST_FINGERPRINT` (host key `SHA256:` fingerprint).
 - [ ] First push: watch CI and deploy; fix anything the local checks could
       not catch (workflow and devcontainer were only syntax-validated).
 - [ ] Open the devcontainer once to confirm `npm ci` and
@@ -42,8 +42,6 @@ shows status and export/import.
 - [ ] Stale second tab can export outdated data: listen for `storage`
       events or reload account before export.
 - [ ] Import: reject files above a few MB before `file.text()`.
-- [ ] README: document that `DEPLOY_PATH` is relative to home or absolute,
-      without quotes or `~`.
 
 ## 4. Maintenance and decisions
 
