@@ -9,13 +9,13 @@
 
 <button class="cup" type="button" aria-label="Drink a coffee" {disabled} onclick={press}>
   <svg viewBox="0 -14 170 164" aria-hidden="true" focusable="false">
-    <ellipse cx="85" cy="128" rx="74" ry="14" fill="var(--surface-edge)" />
-    <ellipse cx="85" cy="122" rx="66" ry="11" fill="var(--surface)" />
-    <path d="M34 50h92v34a46 38 0 0 1-92 0z" fill="#1f5e4b" />
+    <ellipse cx="85" cy="128" rx="74" ry="14" fill="var(--saucer-shadow)" />
+    <ellipse cx="85" cy="122" rx="66" ry="11" fill="var(--saucer)" />
+    <path d="M34 50h92v34a46 38 0 0 1-92 0z" fill="var(--cup)" />
     <path
       d="M126 58h12a16 16 0 0 1 0 32h-16"
       fill="none"
-      stroke="#1f5e4b"
+      stroke="var(--cup)"
       stroke-width="9"
       stroke-linecap="round"
     />
@@ -30,7 +30,7 @@
 
 <style>
   .cup {
-    width: min(70vw, 240px);
+    width: min(62vw, 230px);
     min-width: 160px;
     padding: 0;
     border: 0;

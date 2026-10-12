@@ -1,34 +1,46 @@
 :root {
   color-scheme: light dark;
+  /* Porcelain (light) */
   --bg: #f3ede2;
   --fg: #2b1d17;
   --muted: #6f6a5c;
+  --num: #1f5e4b;
   --accent: #1f5e4b;
   --on-accent: #fff;
+  --cup: #1f5e4b;
   --crema: #e9b872;
+  --saucer: #fff;
+  --saucer-shadow: #d8d0c0;
   --surface: #fff;
   --surface-edge: #d8d0c0;
   --steam: #a9b3a6;
   --toast-bg: #2b1d17;
   --toast-fg: #f3ede2;
   --focus: #1f5e4b;
-  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-num: Georgia, 'Times New Roman', serif;
-  font-family: var(--font-ui);
+  --font: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.4;
 }
 
+/* Espresso (dark) */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #1e1712;
-    --fg: #f3ede2;
-    --muted: #b3a898;
-    --accent: #5fb391;
-    --on-accent: #12261d;
-    --surface: #2c231c;
-    --surface-edge: #0f0b08;
-    --steam: #7d8a80;
+    --fg: #efe6d8;
+    --muted: #a99c8a;
+    --num: #e9b872;
+    --accent: #e9b872;
+    --on-accent: #1e1712;
+    --cup: #2e7a60;
+    --saucer: #efe6d8;
+    --saucer-shadow: #0e0a07;
+    --surface: #2a211a;
+    --surface-edge: #0e0a07;
+    --steam: #6e6458;
     --toast-bg: #3a2f26;
-    --focus: #5fb391;
+    --toast-fg: #efe6d8;
+    --focus: #e9b872;
   }
 }
 
