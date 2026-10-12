@@ -2,10 +2,10 @@
   import { onMount } from 'svelte';
   import { exportAccount, parseAccount } from './lib/account';
   import { formatBackupDate } from './lib/dates';
-  import { formatEuro } from './lib/money';
+  import { formatEuro, formatEuroInput } from './lib/money';
   import { STORAGE_KEY } from './lib/persistence';
   import { indexedDbKV, localStorageKV, requestPersistentStorage } from './lib/kv';
-  import { createStore } from './lib/store.svelte';
+  import { createStore, LAST_BACKUP_KEY } from './lib/store.svelte';
   import AmountSheet from './components/AmountSheet.svelte';
   import Cup from './components/Cup.svelte';
   import Toast from './components/Toast.svelte';
@@ -24,6 +24,7 @@
     // Another tab wrote: follow it so this tab never exports or overwrites stale data.
     const onStorage = (event: StorageEvent) => {
       if (event.key === STORAGE_KEY) store.applyExternal(event.newValue);
+      else if (event.key === LAST_BACKUP_KEY) store.applyExternalBackup(event.newValue);
     };
     window.addEventListener('storage', onStorage);
     void (async () => {
@@ -89,7 +90,7 @@
   <Cup disabled={store.disabled} onclick={() => store.drink()} />
   <p class="hint">Tap the cup to drink one</p>
 
-  <Toast toast={store.toast} onundo={() => store.undo()} ondismiss={() => store.dismissToast()} />
+  <Toast toast={store.toast} onundo={() => store.toast?.eventId && store.undo(store.toast.eventId)} ondismiss={() => store.dismissToast()} />
 
   <div class="actions">
     <button type="button" class="primary" disabled={store.disabled} onclick={() => (sheet = 'topup')}>
@@ -160,7 +161,7 @@
 <AmountSheet
   open={sheet === 'price'}
   title="Price per coffee"
-  initial={formatEuro(price).replace(/\s?€/, '').trim()}
+  initial={formatEuroInput(price)}
   hint="Only affects future coffees."
   confirmLabel={(c) => `Set price to ${formatEuro(c)}`}
   onclose={() => (sheet = null)}

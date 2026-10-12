@@ -63,7 +63,8 @@ describe('createStore', () => {
     await store.init();
     await store.drink();
     expect(store.balanceCents).toBe(480);
-    expect(store.toast).toEqual({ kind: 'coffee', cents: 20, undoable: true });
+    expect(store.toast).toMatchObject({ kind: 'coffee', cents: 20, undoable: true });
+    expect(store.toast!.eventId).toBe(store.account!.events.at(-1)!.id);
     for (const kv of [primary, mirror] as ReturnType<typeof memKV>[]) {
       expect(JSON.parse(kv.data[STORAGE_KEY]).events).toHaveLength(2);
     }
@@ -81,7 +82,7 @@ describe('createStore', () => {
     const { store } = setup();
     await store.init();
     await store.topUp(1000);
-    expect(store.toast).toEqual({ kind: 'topup', cents: 1000, undoable: true });
+    expect(store.toast).toMatchObject({ kind: 'topup', cents: 1000, undoable: true });
     expect(store.balanceCents).toBe(1000);
   });
 
@@ -98,7 +99,7 @@ describe('createStore', () => {
     const { store } = setup({ stored: stored(5) });
     await store.init();
     await store.drink();
-    await store.undo();
+    await store.undo(store.toast!.eventId!);
     expect(store.balanceCents).toBe(500);
     expect(store.toast).toBeNull();
   });
@@ -198,5 +199,43 @@ describe('createStore', () => {
     expect(performance.now() - t0).toBeLessThan(1000);
     expect(store.balanceCents).toBe(480);
     expect(store.saveError).toBe(false);
+  });
+
+  it('undo only removes the event its toast names', async () => {
+    const { store } = setup({ stored: stored(5) });
+    await store.init();
+    await store.topUp(1000);
+    const topupId = store.toast!.eventId!;
+    // A coffee lands before Undo on the top-up toast runs.
+    await Promise.all([store.drink(), store.undo(topupId)]);
+    expect(store.account!.events.map((e) => e.type)).toEqual(['topup', 'topup', 'coffee']);
+  });
+
+  it('applyExternal clears a stale save error', async () => {
+    let failing = true;
+    const flaky: KV = {
+      async get() {
+        return null;
+      },
+      async set() {
+        if (failing) throw new Error('down');
+      },
+    };
+    const { store } = setup({ primary: flaky, mirror: flaky });
+    await store.init();
+    await store.drink();
+    expect(store.saveError).toBe(true);
+    failing = false;
+    store.applyExternal(exportAccount(stored(999_999)));
+    expect(store.saveError).toBe(false);
+  });
+
+  it('applyExternalBackup follows another tab\'s backup date', async () => {
+    const { store } = setup();
+    await store.init();
+    store.applyExternalBackup('123456');
+    expect(store.lastBackupAt).toBe(123456);
+    store.applyExternalBackup('junk');
+    expect(store.lastBackupAt).toBe(123456);
   });
 });

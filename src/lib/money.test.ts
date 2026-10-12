@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatEuro, parseEuro } from './money';
+import { formatEuro, formatEuroInput, parseEuro } from './money';
 
 // Intl uses a non-breaking space before "€"; normalise for stable assertions.
 const f = (cents: number) => formatEuro(cents).replace(/\s/g, ' ');
@@ -41,4 +41,15 @@ describe('parseEuro', () => {
       expect(parseEuro(input)).toBeNull();
     },
   );
+});
+
+describe('formatEuroInput', () => {
+  it.each([
+    [20, '0,20'],
+    [750, '7,50'],
+    [100000, '1000,00'],
+  ])('formats %i cents as %j', (cents, text) => {
+    expect(formatEuroInput(cents)).toBe(text);
+    expect(parseEuro(formatEuroInput(cents))).toBe(cents);
+  });
 });

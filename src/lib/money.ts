@@ -23,3 +23,8 @@ export function parseEuro(input: string): number | null {
   const cents = euros * 100 + Number((m[2] ?? '').padEnd(2, '0'));
   return cents > 0 && cents <= MAX_AMOUNT_CENTS ? cents : null;
 }
+
+/** Editable form of an amount ("1000,00"): no currency sign or thousands separator, so parseEuro accepts it. */
+export function formatEuroInput(cents: number): string {
+  return `${Math.floor(cents / 100)},${String(cents % 100).padStart(2, '0')}`;
+}

@@ -20,7 +20,13 @@ export interface StoreDeps {
   newId?: () => string;
 }
 
-export type Toast = { kind: 'coffee' | 'topup' | 'price'; cents: number; undoable: boolean };
+export type Toast = {
+  kind: 'coffee' | 'topup' | 'price';
+  cents: number;
+  undoable: boolean;
+  /** The event this toast describes; Undo removes only that event. */
+  eventId?: string;
+};
 
 export interface Store {
   readonly account: Account | null;
@@ -36,12 +42,20 @@ export interface Store {
   drink(): Promise<void>;
   topUp(cents: number): Promise<void>;
   setPrice(cents: number): Promise<void>;
-  undo(): Promise<void>;
+  /** Remove the named event if it is still the last one; otherwise do nothing. */
+  undo(eventId: string): Promise<void>;
   dismissToast(): void;
   markBackedUp(): Promise<void>;
   /** Adopt another tab's write (from a `storage` event). */
   applyExternal(raw: string | null): void;
+  /** Adopt another tab's last-backup timestamp. */
+  applyExternalBackup(raw: string | null): void;
   importAccount(a: Account): Promise<boolean>;
+}
+
+function parseBackupTs(raw: string | null): number | null {
+  const ts = Number(raw);
+  return raw && Number.isFinite(ts) && ts > 0 ? ts : null;
 }
 
 let idCounter = 0;
@@ -120,8 +134,7 @@ export function createStore(deps: StoreDeps): Store {
       account = result.account;
       status = result.status;
       try {
-        const raw = Number(await meta.get(LAST_BACKUP_KEY));
-        lastBackupAt = Number.isFinite(raw) && raw > 0 ? raw : null;
+        lastBackupAt = parseBackupTs(await meta.get(LAST_BACKUP_KEY));
       } catch {
         lastBackupAt = null;
       }
@@ -130,12 +143,12 @@ export function createStore(deps: StoreDeps): Store {
     drink: () =>
       act(
         (a) => drink(a, newId(), now()),
-        (a) => ({ kind: 'coffee', cents: a.priceCents, undoable: true }),
+        (a) => ({ kind: 'coffee', cents: a.priceCents, undoable: true, eventId: a.events.at(-1)!.id }),
       ),
     topUp: (cents) =>
       act(
         (a) => topUp(a, cents, newId(), now()),
-        () => ({ kind: 'topup', cents, undoable: true }),
+        (a) => ({ kind: 'topup', cents, undoable: true, eventId: a.events.at(-1)!.id }),
       ),
     setPrice: (cents) =>
       act(
@@ -143,12 +156,14 @@ export function createStore(deps: StoreDeps): Store {
         () => ({ kind: 'price', cents, undoable: false }),
       ),
 
-    undo() {
+    undo(eventId) {
       return enqueue(async () => {
         if (disabled() || !account) return;
-        const { account: next, removed } = undo(account);
-        if (!removed) return;
-        if (await commit(next)) toast = null;
+        if (account.events.at(-1)?.id !== eventId) {
+          toast = null;
+          return;
+        }
+        if (await commit(undo(account).account)) toast = null;
       });
     },
 
@@ -173,6 +188,12 @@ export function createStore(deps: StoreDeps): Store {
       account = next;
       status = 'ok';
       toast = null;
+      saveError = false;
+    },
+
+    applyExternalBackup(raw) {
+      const ts = parseBackupTs(raw);
+      if (ts !== null) lastBackupAt = ts;
     },
 
     importAccount(a) {
