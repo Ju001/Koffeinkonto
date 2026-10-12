@@ -7,8 +7,8 @@ remote exists. Specs and plans live in `docs/superpowers/`.
 ## 1. Go live (needs your infrastructure)
 
 - [ ] Create the GitHub repo, add the remote, push `main`.
-- [ ] Server: `docker network create web`.
-- [ ] Server: split Caddy into its own stack attached to `web`; site block
+- [ ] Server: `docker network create shared` (skip if it already exists).
+- [ ] Server: split Caddy into its own stack attached to `shared`; site block
       `koffeinkonto.<domain> { reverse_proxy koffeinkonto:80 }`.
 - [ ] Server: clone the repo with a read-only deploy key to
       `/opt/prod/Koffeinkonto`; SSH on port 2222.

@@ -103,12 +103,12 @@ normal browser tab may not share data (platform-dependent, notably iOS).
 - nginx config: SPA fallback to `index.html`; `no-cache` on `index.html` and
   `sw.js`; long immutable cache on hashed assets.
 - `docker-compose.yml`: single service `koffeinkonto`, no published ports,
-  attached to an external Docker network `web`.
+  attached to an external Docker network `shared`.
 
 ### TLS / reverse proxy
 
 The app does not handle TLS. The vserver's Caddy (to be extracted into its own
-stack, separate from the other project) joins the external `web` network and
+stack, separate from the other project) joins the external `shared` network and
 proxies to the container:
 
 ```
@@ -141,8 +141,8 @@ commit that passed CI. Required repository secrets: `VPS_HOST`, `VPS_USER`,
 `VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT`.
 
 Server prerequisites: Docker with compose plugin, a git checkout of the repo
-(read-only deploy key), and the external `web` network
-(`docker network create web`).
+(read-only deploy key), and the external `shared` network
+(`docker network create shared`).
 
 ## Scope of the foundation iteration
 

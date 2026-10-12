@@ -4,8 +4,8 @@ services:
     container_name: koffeinkonto
     restart: unless-stopped
     networks:
-      - web
+      - shared
 
 networks:
-  web:
+  shared:
     external: true

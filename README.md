@@ -20,11 +20,11 @@ npm run icons      # regenerate PNG icons from public/icon.svg
 ## Run in Docker
 
 ```bash
-docker network create web   # once per host
+docker network create shared   # once per host, skip if it already exists
 docker compose up -d --build
 ```
 
-The container publishes no ports. Put a reverse proxy on the same `web`
+The container publishes no ports. Put a reverse proxy on the same `shared`
 network. With Caddy:
 
 ```
@@ -46,7 +46,7 @@ checkout on the server and rebuilds the container.
 1. Docker with the compose plugin.
 2. A checkout of this repo (use a read-only deploy key) at
    `/opt/prod/Koffeinkonto`.
-3. `docker network create web`, and your Caddy attached to that network.
+3. `docker network create shared` (if it does not exist yet), and your Caddy attached to that network.
 4. SSH on port 2222 for a user that can run `docker`.
 
 The deploy job runs `git fetch origin main`, fast-forwards to the exact commit
