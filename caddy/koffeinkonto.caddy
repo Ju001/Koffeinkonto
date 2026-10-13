@@ -1,4 +1,4 @@
-koffeinkonto.wafolcenses.online {
+koffeinkonto.example.com {
 	encode zstd gzip
 	reverse_proxy koffeinkonto:80
 }

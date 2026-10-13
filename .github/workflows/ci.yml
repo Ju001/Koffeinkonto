@@ -46,8 +46,12 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST_FINGERPRINT: ${{ secrets.VPS_HOST_FINGERPRINT }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          CADDY_SITES_DIR: ${{ secrets.CADDY_SITES_DIR }}
+          KOFFEINKONTO_DOMAIN: ${{ secrets.KOFFEINKONTO_DOMAIN }}
         run: |
-          for v in VPS_HOST VPS_USER VPS_SSH_KEY VPS_HOST_FINGERPRINT; do
+          for v in VPS_HOST VPS_USER VPS_SSH_KEY VPS_HOST_FINGERPRINT VPS_PORT DEPLOY_PATH CADDY_SITES_DIR KOFFEINKONTO_DOMAIN; do
             if [ -z "${!v}" ]; then echo "::error::secret $v is not set"; exit 1; fi
           done
 
@@ -55,25 +59,31 @@ jobs:
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          CADDY_SITES_DIR: ${{ secrets.CADDY_SITES_DIR }}
+          KOFFEINKONTO_DOMAIN: ${{ secrets.KOFFEINKONTO_DOMAIN }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           fingerprint: ${{ secrets.VPS_HOST_FINGERPRINT }}
-          port: 2222
-          envs: DEPLOY_SHA
+          port: ${{ secrets.VPS_PORT }}
+          envs: DEPLOY_SHA,DEPLOY_PATH,CADDY_SITES_DIR,KOFFEINKONTO_DOMAIN
           script: |
             set -e
             export COMPOSE_PROJECT_NAME=koffeinkonto
-            cd /opt/prod/Koffeinkonto
+            cd "$DEPLOY_PATH"
             git fetch --quiet origin main
             git merge --ff-only "$DEPLOY_SHA"
             docker compose up -d --build
             docker image prune -f
 
-            SNIP=/opt/caddy/sites/koffeinkonto.caddy
+            case "$KOFFEINKONTO_DOMAIN" in
+              *[!A-Za-z0-9.-]*|'') echo "Invalid KOFFEINKONTO_DOMAIN" >&2; exit 1 ;;
+            esac
+            SNIP="$CADDY_SITES_DIR/koffeinkonto.caddy"
             if [ -f "$SNIP" ]; then cp "$SNIP" "$SNIP.bak"; fi
-            cp caddy/koffeinkonto.caddy "$SNIP"
+            sed "s/koffeinkonto\.example\.com/$KOFFEINKONTO_DOMAIN/" caddy/koffeinkonto.caddy > "$SNIP"
             if ! docker exec caddy caddy validate --config /etc/caddy/Caddyfile; then
               if [ -f "$SNIP.bak" ]; then mv "$SNIP.bak" "$SNIP"; else rm -f "$SNIP"; fi
               echo "Caddy validation failed; snippet rolled back" >&2

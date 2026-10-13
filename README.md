@@ -38,16 +38,19 @@ HTTPS is required for PWA installation and the service worker.
 ## Deploy (GitHub Actions)
 
 Pushes to `main` run lint, typecheck, unit tests, build, and e2e tests; on
-success the `deploy` job (`appleboy/ssh-action`, port 2222) updates the
+success the `deploy` job (`appleboy/ssh-action`) updates the
 checkout on the server and rebuilds the container.
 
 ### Server prerequisites
 
 1. Docker with the compose plugin.
 2. A checkout of this repo (use a read-only deploy key) at
-   `/opt/prod/Koffeinkonto`.
+   the path configured as `DEPLOY_PATH`.
 3. `docker network create shared` (if it does not exist yet), and your Caddy attached to that network.
-4. SSH on port 2222 for a user that can run `docker`.
+4. SSH access for a user that can run `docker`.
+5. Optional: a Caddy container named `caddy` that imports site snippets from
+   `CADDY_SITES_DIR`. `caddy/koffeinkonto.caddy` is a template; the deploy job
+   replaces `koffeinkonto.example.com` with `KOFFEINKONTO_DOMAIN`.
 
 The deploy job runs `git fetch origin main`, fast-forwards to the exact commit
 that passed CI (not whatever `main` is by then), then
@@ -60,7 +63,11 @@ that passed CI (not whatever `main` is by then), then
 | `VPS_HOST` | Server hostname or IP |
 | `VPS_USER` | SSH user on the server |
 | `VPS_SSH_KEY` | Private key (dedicated deploy key) |
-| `VPS_HOST_FINGERPRINT` | Server host key fingerprint (`ssh-keygen -lf <(ssh-keyscan -t ed25519 -p 2222 <host>)`, the `SHA256:...` part); without it the action would not verify the host, so the job refuses to run |
+| `VPS_HOST_FINGERPRINT` | Server host key fingerprint (`ssh-keygen -lf <(ssh-keyscan -t ed25519 -p <port> <host>)`, the `SHA256:...` part); without it the action would not verify the host, so the job refuses to run |
+| `VPS_PORT` | SSH port |
+| `DEPLOY_PATH` | Absolute path of the repo checkout on the server |
+| `CADDY_SITES_DIR` | Directory on the server where the Caddy site snippet is written |
+| `KOFFEINKONTO_DOMAIN` | Public hostname served by Caddy |
 
 ## Notes
 

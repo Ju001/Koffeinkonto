@@ -134,11 +134,12 @@ test.
 from secrets), `git pull` in the deploy directory, run
 `docker compose up -d --build`, prune old images. Build happens on the server.
 
-Deploy uses `appleboy/ssh-action@v1` on SSH port 2222 with
-`COMPOSE_PROJECT_NAME=koffeinkonto` in `/opt/prod/Koffeinkonto` (adapted from
+Deploy uses `appleboy/ssh-action@v1` with
+`COMPOSE_PROJECT_NAME=koffeinkonto` in a checkout at `DEPLOY_PATH` (adapted from
 the user's deployment template). The server is fast-forwarded to the exact
 commit that passed CI. Required repository secrets: `VPS_HOST`, `VPS_USER`,
-`VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT`.
+`VPS_SSH_KEY`, `VPS_HOST_FINGERPRINT`, `VPS_PORT`, `DEPLOY_PATH`,
+`CADDY_SITES_DIR`, `KOFFEINKONTO_DOMAIN`.
 
 Server prerequisites: Docker with compose plugin, a git checkout of the repo
 (read-only deploy key), and the external `shared` network

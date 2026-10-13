@@ -10,10 +10,11 @@ Specs and plans live in `docs/superpowers/`.
 - [x] Server: `docker network create shared` (skip if it already exists).
 - [x] Server: split Caddy into its own stack attached to `shared`; site block
       `koffeinkonto.<domain> { reverse_proxy koffeinkonto:80 }`.
-- [x] Server: clone the repo with a read-only deploy key to
-      `/opt/prod/Koffeinkonto`; SSH on port 2222.
+- [x] Server: clone the repo with a read-only deploy key (path in
+      `DEPLOY_PATH`).
 - [x] Repo secrets: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`,
-      `VPS_HOST_FINGERPRINT` (host key `SHA256:` fingerprint).
+      `VPS_HOST_FINGERPRINT` (host key `SHA256:` fingerprint), `VPS_PORT`,
+      `DEPLOY_PATH`, `CADDY_SITES_DIR`, `KOFFEINKONTO_DOMAIN`.
 - [x] First push: watch CI and deploy; fix anything the local checks could
       not catch (workflow and devcontainer were only syntax-validated).
 - [x] Open the devcontainer once to confirm `npm ci` and
@@ -80,6 +81,8 @@ logic in `src/lib/ops.ts` and `src/lib/store.svelte.ts`, UI in
 
 ## Project conventions
 
+- The repo is public: no hostnames, ports, paths, or credentials in tracked
+  files; deployment specifics live in repository secrets.
 - Never add co-author or attribution trailers to commits or docs.
 - Use the latest stable packages, images, and actions; document exceptions.
 - State is browser-local only: `localStorage` primary, IndexedDB mirror, no
