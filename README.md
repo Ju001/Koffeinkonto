@@ -73,41 +73,30 @@ koffeinkonto.example.com {
 
 HTTPS is required for PWA installation and the service worker.
 
-## Deploy (GitHub Actions)
+## Deploy
 
-Pushes to `main` run lint, type check, unit tests, build, and e2e tests. On
-success the `deploy` job (`appleboy/ssh-action`) connects to the server,
-fast-forwards the checkout to the exact commit that passed CI, rebuilds the
-container with `docker compose`, and installs the Caddy site snippet from
-`caddy/koffeinkonto.caddy` (validated first, rolled back on failure).
+Pushes to `main` run lint, type check, unit tests, build and e2e tests. On success
+the `promote` job fast-forwards the `release` branch. The VPS deploys from that branch
+through a GitHub webhook (receiver and deployer live in the VPS-Proxy repo, see its
+`deploy/README.md`); nothing in this repository can reach the server, and it holds no
+deploy secrets.
+
+On the VPS the deployer checks out the released commit and runs
+`scripts/deploy-remote.sh`, which rebuilds the container with `docker compose` and
+installs the Caddy site snippet from `caddy/koffeinkonto.caddy` (validated first,
+rolled back on failure). The snippet is a template: the script replaces
+`koffeinkonto.example.com` with `KOFFEINKONTO_DOMAIN` from a `.env` file next to the
+checkout on the server (see `.env.example`), so the public hostname stays out of the
+repository.
 
 ### Server prerequisites
 
-1. Docker with the compose plugin.
-2. A checkout of this repo (use a read-only deploy key) at the path configured
-   as `DEPLOY_PATH`.
-3. The `shared` Docker network, with your Caddy container (named `caddy`)
-   attached to it.
-4. SSH access for a user that can run `docker`.
-5. Caddy importing site snippets from the directory configured as
-   `CADDY_SITES_DIR`. `caddy/koffeinkonto.caddy` is a template; the deploy job
-   replaces `koffeinkonto.example.com` with `KOFFEINKONTO_DOMAIN`.
-
-### Repository secrets
-
-Deployment specifics are kept out of the repository. The job refuses to run if
-any of these is missing.
-
-| Secret | Content |
-|---|---|
-| `VPS_HOST` | Server hostname or IP |
-| `VPS_PORT` | SSH port |
-| `VPS_USER` | SSH user on the server |
-| `VPS_SSH_KEY` | Private key (dedicated deploy key) |
-| `VPS_HOST_FINGERPRINT` | Server host key fingerprint, the `SHA256:...` part of `ssh-keygen -lf <(ssh-keyscan -t ed25519 -p <port> <host>)`. Without it the action would not verify the host |
-| `DEPLOY_PATH` | Absolute path of the repo checkout on the server |
-| `CADDY_SITES_DIR` | Directory where the Caddy site snippet is written |
-| `KOFFEINKONTO_DOMAIN` | Public hostname served by Caddy |
+1. Docker with the compose plugin and the shared Caddy from VPS-Proxy on the `shared`
+   network.
+2. A root-owned checkout of this repo registered as project `koffeinkonto` in the
+   VPS-Proxy deployer, with a read-only deploy key.
+3. `.env` in that checkout with `KOFFEINKONTO_DOMAIN`.
+4. A webhook on this repository pointing at the deployer, push events only.
 
 ## Data and limitations
 
