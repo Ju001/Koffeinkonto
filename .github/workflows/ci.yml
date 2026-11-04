@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -38,7 +38,7 @@ jobs:
   # `release` through its webhook deployer (VPS-Proxy repo, deploy/README.md);
   # nothing in this workflow can reach the VPS.
   promote:
-    needs: test
+    needs: validate
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
